@@ -1,0 +1,170 @@
+<template>
+  <div>
+    <!-- 輸入區塊 -->
+    <div class="container mx-auto">
+      <div class="flex justify-center mt-4 gap-2">
+        <!-- 新增輸入框 -->
+        <input type="text" placeholder="今天要做甚麼呢?" v-model="text" class="input input-bordered input-md w-full max-w-xs">
+        <!-- 新增按鈕 -->
+        <!-- 按鈕在「儲存中」或「輸入框為空」時會變成不可點擊狀態。 -->
+        <button @click="save" :disabled="isSave || text === ''" class="btn">
+          <span class="loading loading-spinner loading-xs" v-if="isSave"></span>
+          儲存
+        </button>
+      </div>
+    </div>
+    <!-- 顯示 To-Do List 的區塊 -->
+    <div class="overflow-x-auto">
+      <table class="table table-zebra">
+        <!-- 表格標題 -->
+        <thead>
+          <tr>
+            <th>編號</th>
+            <th>內容</th>
+            <th>編輯</th>
+          </tr>
+        </thead>
+        <!-- 表格內容 -->
+        <tbody>
+          <!-- v-for走訪items所有資料 -->
+          <tr v-for="(item, index) in items" :key="index">
+            <!-- 顯示資料編號 -->
+            <th>{{ index + 1 }}</th>
+            <td>
+              <!-- 如果 item.isEdit = false，則顯示 <p> (只顯示文字)。 -->
+              <p v-if="!item.isEdit">{{ item.text }}</p>
+              <!-- 如果 item.isEdit = true，則顯示 <input> (可編輯文字)。 -->
+              <input v-else type="text" placeholder="今天要做甚麼呢?" v-model="item.text"
+                class="input input-bordered input-md w-full max-w-xs">
+            </td>
+            <td>
+              <!-- 若未進入編輯模式，顯示「編輯」按鈕 -->
+              <button v-if="!item.isEdit" @click="changeMode(index)" class="btn btn-outline btn-xs">編輯</button>
+              <!-- 若進入編輯模式，顯示「更新」和「刪除」按鈕 -->
+              <div v-if="item.isEdit" class="flex gap-2">
+                <button @click="update(index)" class="btn btn-success btn-outline btn-xs">更新</button>
+                <button @click="remove(index)" class="btn btn-error btn-outline btn-xs">刪除</button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</template>
+
+<script setup>
+import { ref, onMounted } from 'vue';
+import { Parse } from 'parse/dist/parse.min.js';
+
+// 新增text變數，儲存輸入框內容
+const text = ref('');
+// 新增新增isSave變數，控制儲存按鈕的狀態 (避免重複提交)
+const isSave = ref(false);
+// 新增items陣列，儲存ToDo資料表
+const items = ref([]);
+
+
+
+// 新增一個getData函式，讀取ToDo資料表
+async function getData() {
+  try {
+    // 查詢 ToDo 資料表
+    const query = new Parse.Query("ToDo");
+    // 獲取所有資料
+    let datas = await query.find();
+    // 清除items陣列所有資料，避免重複顯示
+    items.value = [];
+
+    // 將下載回來的資料儲存到items陣列內
+    datas.forEach(data => {
+      items.value.push({
+        "id": data.id,
+        "text": data.get('text'),
+      })
+    });
+
+  } catch (error) {
+    console.log(error);
+  }
+}
+
+// 新增一個save函式，會將text內容上傳到ToDo資料表內
+async function save() {
+
+  // 設定 isSave 為 true，顯示 loading 動畫
+  isSave.value = true;
+  // 創建新的 Parse 物件
+  const toDoList = new Parse.Object("ToDo");
+  // 設定為 text 屬性
+  toDoList.set("text", text.value);
+
+  try {
+    // await 會讓 JavaScript 等待儲存完成才執行下一行
+    await toDoList.save()// 儲存到 Parse 資料庫
+    text.value = "";// 清空輸入框
+    await getData();// 重新讀取資料
+    isSave.value = false;// 隱藏 loading 動畫
+  } catch (error) {
+    alert('上傳失敗' + error.message);
+  }
+
+}
+
+// 新增一個changeMode函式，將陣列items某一筆的isEdit設為true
+function changeMode(index) {
+  // 設定 isEdit 為 true，進入編輯模式
+  items.value[index].isEdit = true;
+}
+
+// 新增一個update函式，可以編輯資料
+async function update(index) {
+  let item = items.value[index];
+  try {
+    // 查詢 ToDo 資料表
+    const query = new Parse.Query("ToDo");
+    // 查詢目標 To-Do
+    query.equalTo("objectId", item.id);
+    // 獲取資料
+    const toDo = await query.first();
+    // 更新內容
+    toDo.set("text", item.text);
+    // 儲存變更
+    await toDo.save();
+    // 退出編輯模式
+    items.value[index].isEdit = false;
+
+  } catch (error) {
+    alert('更新失敗' + error.message);
+  }
+}
+
+// 新增一個remove函式，可以刪除資料
+async function remove(index) {
+  let item = items.value[index];
+  try {
+    // 查詢 ToDo 資料表
+    const query = new Parse.Query("ToDo");
+    // 查詢目標 To-Do
+    query.equalTo("objectId", item.id);
+    // 取得資料
+    const toDo = await query.first();
+    // 刪除資料
+    await toDo.destroy();
+    // 重新讀取資料
+    await getData();
+
+  } catch (error) {
+    console.log(error);
+  }
+}
+
+// 在onMounted上呼叫getData()來讀取ToDo資料表
+onMounted(() => {
+  getData();
+});
+
+</script>
+
+<style></style>
