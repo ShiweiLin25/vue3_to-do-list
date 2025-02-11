@@ -22,6 +22,7 @@
             <th>編號</th>
             <th>內容</th>
             <th>編輯</th>
+            <th>進度</th>
           </tr>
         </thead>
         <!-- 表格內容 -->
@@ -32,19 +33,26 @@
             <th>{{ index + 1 }}</th>
             <td>
               <!-- 如果 item.isEdit = false，則顯示 <p> (只顯示文字)。 -->
-              <p v-if="!item.isEdit">{{ item.text }}</p>
+              <!-- 當 item.isFinished === true 時，讓文字加上刪除線和變成灰色。 -->
+              <p v-if="!item.isEdit" :class="{ 'line-through text-gray-400': item.isFinished }">{{ item.text }}</p>
               <!-- 如果 item.isEdit = true，則顯示 <input> (可編輯文字)。 -->
               <input v-else type="text" placeholder="今天要做甚麼呢?" v-model="item.text"
                 class="input input-bordered input-md w-full max-w-xs">
             </td>
             <td>
               <!-- 若未進入編輯模式，顯示「編輯」按鈕 -->
-              <button v-if="!item.isEdit" @click="changeMode(index)" class="btn btn-outline btn-xs">編輯</button>
+              <button v-if="!item.isEdit" @click="changeMode(index)"
+                class="btn btn-neutral btn-outline btn-xs">編輯</button>
               <!-- 若進入編輯模式，顯示「更新」和「刪除」按鈕 -->
               <div v-if="item.isEdit" class="flex gap-2">
                 <button @click="update(index)" class="btn btn-success btn-outline btn-xs">更新</button>
                 <button @click="remove(index)" class="btn btn-error btn-outline btn-xs">刪除</button>
               </div>
+            </td>
+            <td>
+              <button @click="finished(index)" v-if="!item.isFinished"
+                class="btn btn-warning btn-outline btn-xs">未完成</button>
+              <button @click="finished(index)" v-else class="btn btn-info btn-outline btn-xs">已完成</button>
             </td>
           </tr>
         </tbody>
@@ -74,16 +82,17 @@ async function getData() {
     const query = new Parse.Query("ToDo");
     // 獲取所有資料
     let datas = await query.find();
-    // 清除items陣列所有資料，避免重複顯示
-    items.value = [];
-
-    // 將下載回來的資料儲存到items陣列內
-    datas.forEach(data => {
-      items.value.push({
-        "id": data.id,
-        "text": data.get('text'),
-      })
-    });
+    // 將查詢到的資料轉換成前端需要的格式
+    items.value = datas.map(data => ({
+      // 取得 Parse 物件的唯一 ID
+      id: data.id,
+      // 取得 ToDo 的文字內容
+      text: data.get("text"),
+      // 取得是否完成狀態，若無則預設為 false
+      isFinished: data.get("isFinished") || false,
+      // 預設編輯模式為 false
+      isEdit: false,
+    }));
 
   } catch (error) {
     console.log(error);
@@ -157,6 +166,28 @@ async function remove(index) {
 
   } catch (error) {
     console.log(error);
+  }
+}
+
+// 新增一個finished函式，可以將已完成事項加上刪除線
+async function finished(index) {
+  // 取得對應索引的待辦事項
+  let item = items.value[index];
+  try {
+    // 創建 Parse 查詢物件
+    const query = new Parse.Query("ToDo");
+    // 透過 item.id 查詢對應的待辦事項
+    const toDo = await query.get(item.id);
+    // 反轉 isFinished 狀態 (true <-> false)
+    const newStatus = !item.isFinished;
+    // 更新資料庫中的 isFinished 欄位
+    toDo.set("isFinished", newStatus);
+    // 儲存變更至 Parse 資料庫
+    await toDo.save();
+    // 更新前端顯示狀態
+    item.isFinished = newStatus;
+  } catch (error) {
+    alert('完成失敗: ' + error.message);
   }
 }
 
