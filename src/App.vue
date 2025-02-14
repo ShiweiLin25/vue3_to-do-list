@@ -58,12 +58,18 @@
         </tbody>
       </table>
     </div>
+    <div>
+      <button @click="goToTop" v-show="showGoToTop"
+        class="fixed bottom-4 right-4 bg-gray-400 text-white px-2 py-2 rounded-full hover:bg-gray-500 transition">
+        TOP ⭡
+      </button>
+    </div>
   </div>
 
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { Parse } from 'parse/dist/parse.min.js';
 
 // 新增text變數，儲存輸入框內容
@@ -73,6 +79,17 @@ const isSave = ref(false);
 // 新增items陣列，儲存ToDo資料表
 const items = ref([]);
 
+const showGoToTop = ref(false); // 控制按鈕顯示狀態
+
+// 監聽滾動事件
+function handleScroll() {
+  showGoToTop.value = window.scrollY > 50; // 滾動超過 100px 才顯示按鈕
+}
+
+// 滾動至頂部
+function goToTop() {
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
 
 
 // 新增一個getData函式，讀取ToDo資料表
@@ -193,9 +210,14 @@ async function finished(index) {
 
 // 在onMounted上呼叫getData()來讀取ToDo資料表
 onMounted(() => {
-  getData();
+  getData(); // 讀取 ToDo 清單資料
+  window.addEventListener('scroll', handleScroll); // 監聽滾動事件
 });
 
+// 當組件被銷毀時，移除滾動監聽，避免效能問題
+onUnmounted(() => {
+  window.removeEventListener('scroll', handleScroll);
+});
 </script>
 
 <style></style>
