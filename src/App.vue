@@ -4,13 +4,21 @@
     <div class="container mx-auto">
       <div class="flex justify-center mt-4 gap-2">
         <!-- 新增輸入框 -->
-        <input type="text" placeholder="今天要做甚麼呢?" v-model="text" class="input input-bordered input-md w-full max-w-xs">
+        <input type="text" placeholder="今天要做什麼呢?" v-model="text" class="input input-bordered input-md w-full max-w-xs">
         <!-- 新增按鈕 -->
         <!-- 按鈕在「儲存中」或「輸入框為空」時會變成不可點擊狀態。 -->
         <button @click="save" :disabled="isSave || text === ''" class="btn">
           <span class="loading loading-spinner loading-xs" v-if="isSave"></span>
           儲存
         </button>
+        <!-- 使用 flex 來分開排版，並使「刪除已完成」按鈕靠右 -->
+        <div class="flex justify-end">
+          <!-- 刪除已完成按鈕 -->
+          <button @click="deleteCompleted" :disabled="!hasCompletedItems || isLoading" class="btn">
+            <span v-if="isLoading" class="loading loading-spinner loading-xs"></span>
+            刪除已完成
+          </button>
+        </div>
       </div>
     </div>
     <!-- 顯示 To-Do List 的區塊 -->
@@ -69,7 +77,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { Parse } from 'parse/dist/parse.min.js';
 
 // 新增text變數，儲存輸入框內容
@@ -80,6 +88,12 @@ const isSave = ref(false);
 const items = ref([]);
 
 const showGoToTop = ref(false); // 控制按鈕顯示狀態
+
+// 計算屬性，檢查是否有已完成的項目
+const hasCompletedItems = computed(() => {
+  return items.value.some(item => item.isFinished);
+});
+
 
 // 監聽滾動事件
 function handleScroll() {
@@ -185,6 +199,39 @@ async function remove(index) {
     console.log(error);
   }
 }
+// 新增 isLoading 變數來控制載入狀態
+const isLoading = ref(false);
+
+// 刪除所有已完成的待辦事項
+async function deleteCompleted() {
+  try {
+    // 顯示載入動畫
+    isLoading.value = true;
+
+    // 篩選出所有已完成的待辦事項
+    const completedItems = items.value.filter(item => item.isFinished);
+
+    // 循環刪除已完成的事項
+    for (let item of completedItems) {
+      const query = new Parse.Query("ToDo");
+      query.equalTo("objectId", item.id);
+      const toDo = await query.first();
+      if (toDo) {
+        await toDo.destroy(); // 刪除 ToDo 項目
+      }
+    }
+
+    // 刪除後重新讀取資料
+    await getData();
+
+  } catch (error) {
+    console.log("刪除已完成項目失敗:", error);
+  } finally {
+    // 隱藏載入動畫
+    isLoading.value = false;
+  }
+}
+
 
 // 新增一個finished函式，可以將已完成事項加上刪除線
 async function finished(index) {
