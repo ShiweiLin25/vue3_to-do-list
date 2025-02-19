@@ -1,25 +1,21 @@
 <template>
   <div>
-    <!-- 輸入區塊 -->
-    <div class="container mx-auto">
-      <div class="flex justify-center mt-4 gap-2">
-        <!-- 新增輸入框 -->
-        <input type="text" placeholder="今天要做什麼呢?" v-model="text" class="input input-bordered input-md w-full max-w-xs">
-        <!-- 新增按鈕 -->
-        <!-- 按鈕在「儲存中」或「輸入框為空」時會變成不可點擊狀態。 -->
-        <button @click="save" :disabled="isSave || text === ''" class="btn">
-          <span class="loading loading-spinner loading-xs" v-if="isSave"></span>
-          儲存
-        </button>
-        <!-- 使用 flex 來分開排版，並使「刪除已完成」按鈕靠右 -->
-        <div class="flex justify-end">
-          <!-- 刪除已完成按鈕 -->
-          <button @click="deleteCompleted" :disabled="!hasCompletedItems || isLoading" class="btn">
-            <span v-if="isLoading" class="loading loading-spinner loading-xs"></span>
-            刪除已完成
-          </button>
-        </div>
-      </div>
+    <!-- 輸入待辦事項區塊 -->
+    <div class="flex justify-center mt-4 gap-2">
+      <!-- 待辦事項輸入框 -->
+      <input type="text" placeholder="今天要做什麼呢?" v-model="text" class="input input-bordered input-md w-full max-w-xs">
+      <!-- 按鈕在「儲存中」或「輸入框為空」時按鈕不可點擊。 -->
+      <button @click="save" :disabled="isSave || text === ''" class="btn">
+        <!-- 當 isSave 為 true 時，顯示載入動畫 -->
+        <span v-if="isSave" class="loading loading-spinner loading-xs"></span>
+        儲存
+      </button>
+      <!-- 刪除已完成按鈕，當沒有已完成項目或 isLoading 為 true 時，按鈕不可點擊 -->
+      <button @click="deleteCompleted" :disabled="!hasCompletedItems || isLoading" class="btn">
+        <!-- 當 isLoading 為 true 時，顯示載入動畫 -->
+        <span v-if="isLoading" class="loading loading-spinner loading-xs"></span>
+        刪除已完成
+      </button>
     </div>
     <!-- 顯示 To-Do List 的區塊 -->
     <div class="overflow-x-auto">
@@ -35,15 +31,15 @@
         </thead>
         <!-- 表格內容 -->
         <tbody>
-          <!-- v-for走訪items所有資料 -->
+          <!-- 使用 v-for 走訪 items 陣列，顯示所有待辦事項 -->
           <tr v-for="(item, index) in items" :key="index">
-            <!-- 顯示資料編號 -->
+            <!-- 顯示資料編號，從 1 開始 -->
             <th>{{ index + 1 }}</th>
             <td>
-              <!-- 如果 item.isEdit = false，則顯示 <p> (只顯示文字)。 -->
-              <!-- 當 item.isFinished === true 時，讓文字加上刪除線和變成灰色。 -->
+              <!-- 當 item.isEdit 為 false 時，顯示文字 -->
+              <!-- 當 item.isFinished 為 true 時，文字加刪除線並變成灰色 -->
               <p v-if="!item.isEdit" :class="{ 'line-through text-gray-400': item.isFinished }">{{ item.text }}</p>
-              <!-- 如果 item.isEdit = true，則顯示 <input> (可編輯文字)。 -->
+              <!-- 當 item.isEdit 為 true 時，顯示可編輯的輸入框 -->
               <input v-else type="text" placeholder="今天要做甚麼呢?" v-model="item.text"
                 class="input input-bordered input-md w-full max-w-xs">
             </td>
@@ -67,6 +63,7 @@
       </table>
     </div>
     <div>
+      <!-- 返回頂部按鈕，當滾動超過一定距離時顯示 -->
       <button @click="goToTop" v-show="showGoToTop"
         class="fixed bottom-4 right-4 bg-gray-400 text-white px-2 py-2 rounded-full hover:bg-gray-500 transition">
         TOP ⭡
@@ -80,57 +77,57 @@
 import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { Parse } from 'parse/dist/parse.min.js';
 
-// 新增text變數，儲存輸入框內容
+// 儲存輸入框內容的變數
 const text = ref('');
-// 新增新增isSave變數，控制儲存按鈕的狀態 (避免重複提交)
+// 控制儲存按鈕狀態，避免重複提交
 const isSave = ref(false);
-// 新增items陣列，儲存ToDo資料表
+// 存儲待辦事項的陣列
 const items = ref([]);
+// 新增 isLoading 變數來控制載入狀態
+const isLoading = ref(false);
+// 控制「返回頂部」按鈕的顯示狀態
+const showGoToTop = ref(false);
 
-const showGoToTop = ref(false); // 控制按鈕顯示狀態
-
-// 計算屬性，檢查是否有已完成的項目
+// 計算是否有已完成的項目，若有則返回 true
 const hasCompletedItems = computed(() => {
   return items.value.some(item => item.isFinished);
 });
 
-
-// 監聽滾動事件
+// 監聽滾動事件，當滾動超過 50px 時顯示「返回頂部」按鈕
 function handleScroll() {
-  showGoToTop.value = window.scrollY > 50; // 滾動超過 100px 才顯示按鈕
+  showGoToTop.value = window.scrollY > 50;
 }
 
-// 滾動至頂部
+// 平滑滾動回頂部
 function goToTop() {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 
-// 新增一個getData函式，讀取ToDo資料表
+// 讀取待辦事項，並更新 items 陣列
 async function getData() {
   try {
-    // 查詢 ToDo 資料表
+    // 建立查詢物件，查詢 ToDo 資料表中的所有資料
     const query = new Parse.Query("ToDo");
-    // 獲取所有資料
+    // 執行查詢
     let datas = await query.find();
     // 將查詢到的資料轉換成前端需要的格式
     items.value = datas.map(data => ({
-      // 取得 Parse 物件的唯一 ID
+      // 取得唯一id
       id: data.id,
-      // 取得 ToDo 的文字內容
+      // 取得 ToDo 文字內容
       text: data.get("text"),
       // 取得是否完成狀態，若無則預設為 false
       isFinished: data.get("isFinished") || false,
-      // 預設編輯模式為 false
+      // 預設不在編輯模式
       isEdit: false,
     }));
-
   } catch (error) {
     console.log(error);
   }
 }
 
-// 新增一個save函式，會將text內容上傳到ToDo資料表內
+// 新增待辦事項
 async function save() {
 
   // 設定 isSave 為 true，顯示 loading 動畫
@@ -142,27 +139,30 @@ async function save() {
 
   try {
     // await 會讓 JavaScript 等待儲存完成才執行下一行
-    await toDoList.save()// 儲存到 Parse 資料庫
-    text.value = "";// 清空輸入框
-    await getData();// 重新讀取資料
-    isSave.value = false;// 隱藏 loading 動畫
+    // 儲存到 Parse 資料庫
+    await toDoList.save()
+    // 清空輸入框
+    text.value = "";
+    // 重新讀取資料
+    await getData();
+    // 隱藏 loading 動畫
+    isSave.value = false;
   } catch (error) {
     alert('上傳失敗' + error.message);
   }
-
 }
 
-// 新增一個changeMode函式，將陣列items某一筆的isEdit設為true
+// 進入編輯模式
 function changeMode(index) {
   // 設定 isEdit 為 true，進入編輯模式
   items.value[index].isEdit = true;
 }
 
-// 新增一個update函式，可以編輯資料
+// 更新待辦事項內容
 async function update(index) {
   let item = items.value[index];
   try {
-    // 查詢 ToDo 資料表
+    // 建立查詢物件，查詢 ToDo 資料表中的所有資料
     const query = new Parse.Query("ToDo");
     // 查詢目標 To-Do
     query.equalTo("objectId", item.id);
@@ -180,11 +180,11 @@ async function update(index) {
   }
 }
 
-// 新增一個remove函式，可以刪除資料
+// 刪除待辦事項
 async function remove(index) {
   let item = items.value[index];
   try {
-    // 查詢 ToDo 資料表
+    // 建立查詢物件，查詢 ToDo 資料表中的所有資料
     const query = new Parse.Query("ToDo");
     // 查詢目標 To-Do
     query.equalTo("objectId", item.id);
@@ -194,13 +194,10 @@ async function remove(index) {
     await toDo.destroy();
     // 重新讀取資料
     await getData();
-
   } catch (error) {
     console.log(error);
   }
 }
-// 新增 isLoading 變數來控制載入狀態
-const isLoading = ref(false);
 
 // 刪除所有已完成的待辦事項
 async function deleteCompleted() {
@@ -211,13 +208,17 @@ async function deleteCompleted() {
     // 篩選出所有已完成的待辦事項
     const completedItems = items.value.filter(item => item.isFinished);
 
-    // 循環刪除已完成的事項
+    // 逐一刪除已完成的待辦事項
     for (let item of completedItems) {
+      // 建立查詢物件，查詢 ToDo 資料表中的所有資料
       const query = new Parse.Query("ToDo");
+      // 查詢特定的待辦事項
       query.equalTo("objectId", item.id);
+      // 獲取對應的 ToDo 物件
       const toDo = await query.first();
       if (toDo) {
-        await toDo.destroy(); // 刪除 ToDo 項目
+        // 刪除 ToDo 項目
+        await toDo.destroy();
       }
     }
 
@@ -233,12 +234,12 @@ async function deleteCompleted() {
 }
 
 
-// 新增一個finished函式，可以將已完成事項加上刪除線
+// 切換待辦事項的完成狀態
 async function finished(index) {
   // 取得對應索引的待辦事項
   let item = items.value[index];
   try {
-    // 創建 Parse 查詢物件
+    // 建立查詢物件，查詢 ToDo 資料表中的所有資料
     const query = new Parse.Query("ToDo");
     // 透過 item.id 查詢對應的待辦事項
     const toDo = await query.get(item.id);
@@ -255,10 +256,12 @@ async function finished(index) {
   }
 }
 
-// 在onMounted上呼叫getData()來讀取ToDo資料表
+// 在組件掛載時，"讀取待辦事項資料"並"監聽滾動事件"
 onMounted(() => {
-  getData(); // 讀取 ToDo 清單資料
-  window.addEventListener('scroll', handleScroll); // 監聽滾動事件
+  // 讀取 ToDo 清單資料
+  getData();
+  // 監聽滾動事件
+  window.addEventListener('scroll', handleScroll);
 });
 
 // 當組件被銷毀時，移除滾動監聽，避免效能問題
